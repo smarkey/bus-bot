@@ -1,0 +1,203 @@
+<html>
+	<head>
+		<title>First Bus</title>
+		<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.8.0.css">
+		<link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+	</head>
+	<body>
+		<div class="container">
+			<h1>First Bus Services</h1>
+			<div class="row">
+				<div class="col-sm">
+					<select id="location"></select>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-sm">
+					<select id="service"></select>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-sm">
+					<button id="start" class="btn">Start</button>
+					<button id="stop" class="btn" style="display: none;">Stop</button>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-sm">
+					<h2 id="stopName"></h2>
+					<div id="status"></div>
+				</div>
+			</div>
+		</div>
+		<!-- <div id="qunit"></div>
+		<div id="qunit-fixture"></div> -->
+	</body>
+	<footer>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+		<script src="https://code.jquery.com/qunit/qunit-2.6.2.js" integrity="sha256-72OhbBvECs6Z5vG0GfPqiyYvTf8vhdEVHKQcacIcIeM=" crossorigin="anonymous"></script>
+		<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+		<script>
+			var timeout = null;
+			var app = {
+				config: {
+					walkingTime: 6,
+					pollFrequencyHigh: 180000,
+					pollFrequencyLow: 60000,
+				},
+				model: {
+					appId: '141a4847',
+					appKey: '3337324691d3130289115a0c723677ab',
+					baseUrl: 'http://transportapi.com/v3',
+					stops: {
+						home: '017000052',
+						work: '0100BRA16904'
+					},
+					services: [
+						"T1"
+					]
+				},
+				actions: {
+					populateService: function() {
+						$.each(app.model.services, function( index, busRef ) {
+							$('#service').append(new Option(busRef, busRef));
+						});
+					},
+					populateLocation: function() {
+						$.each(app.model.stops, function( key, value ) {
+							$('#location').append(new Option(key.charAt(0).toUpperCase() + key.slice(1), value));
+						});
+					},
+					timetablesUrl: function() {
+						return app.model.baseUrl + "/uk/bus/stop/" + $('#location').val() + "/live.json?" + 
+								"app_id=" + app.model.appId + 
+								"&app_key=" + app.model.appKey +
+								"&nextbus=yes" +
+								"&limit=1";
+					},
+					say: function(text) {
+						var msg = new SpeechSynthesisUtterance(text);
+						msg.lang = 'en-GB';
+						window.speechSynthesis.speak(msg);
+					},
+					constructMessage: function(scheduled, expected) {
+						var statusMessage = app.actions.statusMessage(scheduled, expected);
+						var adviceMessage = app.actions.adviceMessage(expected);
+
+						return `${statusMessage} ${adviceMessage}`;
+					},
+					statusMessage: function(scheduled, expected) {
+						var time = scheduled.format(moment.HTML5_FMT.TIME);
+						var message = `The ${time} bus is `;
+
+						if(expected.isAfter(scheduled)) {
+							message += `LATE by ${expected.diff(scheduled, 'm')} minutes.`;
+						} else if(expected.isBefore(scheduled)) {
+							message += `EARLY by ${scheduled.diff(expected, 'm')} minutes.`;
+						} else {
+							message += `ON TIME.`;
+						}
+
+						return message;
+					},
+					adviceMessage: function(expected) {
+						var timeToLeave = expected.subtract(app.config.walkingTime, 'm').fromNow();
+						var message = `You should leave ${timeToLeave}.`;
+
+						if(message.indexOf("ago") !== -1) {
+							message = `It's unlikely you'll catch this bus.`
+						}
+
+						return message;
+					},
+					poll: function() {
+						$.get(app.actions.timetablesUrl())
+						.done( function(response) {
+							$('#stopName').html(response["stop_name"]);
+							var departures = response.departures[$('#service').val()];
+
+							var message;
+							if(typeof departures !== "undefined" ) {
+								var data = departures[0];
+
+								var scheduled = moment(`${data["date"]} ${data['aimed_departure_time']}`);
+								var expected = moment(`${data["date"]} ${data['best_departure_estimate']}`);
+
+								message = app.actions.constructMessage(scheduled, expected);
+							} else {
+								message = `There are no departures for the ${$('#service').val()} today`;
+							}
+
+							app.actions.log(message);
+							timeout = setTimeout(app.actions.poll, app.actions.pollFrequency(scheduled, expected));
+						});
+					},
+					pollFrequency: function(scheduled, expected) {
+						if(scheduled.diff(expected, 'minutes') < 20) {
+							return app.config.pollFrequencyLow;
+						} else {
+							return app.config.pollFrequencyHigh;
+						}
+					},
+					log: function(message) {
+						var time = moment().format(moment.HTML5_FMT.TIME);
+						$('#status').append(`[${time}] ${message}<br/>`)
+						console.log(`[${time}] ${message}`);
+
+						if(message.indexOf("It's unlikely you'll catch this bus.") === -1) {
+							app.actions.say(message);
+						}
+					}
+				}
+			};
+
+			$(function() {
+				var now = moment();
+
+				QUnit.test( "Voice message should be in line with the bus departure time", function( assert ) {
+					var scheduled = now.clone().add(30, 'm');
+					var late = scheduled.clone().add(10, 'm');
+					var early = scheduled.clone().subtract(10, 'm');
+					var tooSoon = now.clone().add(1, 'm');
+
+					assert.ok( app.actions.constructMessage(scheduled, late).indexOf('LATE') !== -1, 
+						"When the bus is due to depart after the scheduled time, it is late" );
+					assert.ok( app.actions.constructMessage(scheduled, early).indexOf('EARLY') !== -1, 
+						"When the bus is due to depart before the scheduled time, it is early" );
+					assert.ok( app.actions.constructMessage(scheduled, scheduled).indexOf('ON TIME') !== -1, 
+						"When the bus is due to depart at the time is scheduled to, it is on time" );
+					assert.ok( app.actions.constructMessage(scheduled, tooSoon).indexOf("It's unlikely you'll catch this bus.") !== -1, 
+						"When the bus is due to depart before I can reach the bus stop" );
+				});
+
+				QUnit.test( "Frequency of polling should change dependent on how close the bus is", function( assert ) {
+					var high = now.clone().add(30, 'm');
+					var low = now.clone().add(10, 'm');
+
+					assert.ok( pollFrequency(now, high) == app.model.pollFrequencyHigh,
+						"When the bus is over 20 minutes away, poll at the higher frequency");
+					assert.ok( pollFrequency(now, low) == app.model.pollFrequencyLow,
+						"When the bus is under 20 minutes away, poll at the lower frequency");
+
+				});
+
+				app.actions.populateLocation();
+				app.actions.populateService();
+
+				$("#start").click( function() {
+					app.actions.poll();
+					$(this).toggle();
+					$('#stop').toggle();
+				});
+
+				$("#stop").click( function() {
+					clearTimeout(timeout);
+					$(this).toggle();
+					$('#start').toggle();
+					$('#stopName, #status').html('');
+				});
+			});
+		</script>
+	</footer>
+</html>
