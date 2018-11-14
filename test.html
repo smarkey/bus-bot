@@ -1,0 +1,67 @@
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+	<head>
+		<title>Bus Bot</title>
+		<link rel="icon" type="image/x-icon" href="favicon.ico">
+		<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.8.0.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+		<script src="https://code.jquery.com/qunit/qunit-2.6.2.js" integrity="sha256-72OhbBvECs6Z5vG0GfPqiyYvTf8vhdEVHKQcacIcIeM=" crossorigin="anonymous"></script>
+		<script src="app.js"></script>
+	</head>
+	<body>
+		<div id="qunit"></div>
+		<div id="qunit-fixture"></div>
+	</body>
+	<footer>
+		<script>
+			$(function() {
+				QUnit.test( "Voice message should be in line with the bus departure time", function( assert ) {
+					var now = moment();
+					var scheduled = now.clone().add(30, 'm');
+					var late = scheduled.clone().add(10, 'm');
+					var early = scheduled.clone().subtract(10, 'm');
+					var tooSoon = now.clone().add(1, 'm');
+
+					assert.ok( app.actions.getMessage(scheduled, late).indexOf('late') !== -1, 
+						"When the bus is due to depart after the scheduled time, it is late" );
+					assert.ok( app.actions.getMessage(scheduled, early).indexOf('early') !== -1, 
+						"When the bus is due to depart before the scheduled time, it is early" );
+					assert.ok( app.actions.getMessage(scheduled, scheduled).indexOf('on time') !== -1, 
+						"When the bus is due to depart at the time is scheduled to, it is on time" );
+					assert.ok( app.actions.getMessage(scheduled, tooSoon).indexOf("It's unlikely you'll catch this bus in") !== -1, 
+						"When the bus is due to depart before I can reach the bus stop" );
+				});
+
+				QUnit.test( "Frequency of polling should change dependent on how close the bus is", function( assert ) {
+					var now = moment();
+					var low = now.clone().add(9, 'm');
+					var medium = now.clone().add(19, 'm');
+					var high = now.clone().add(30, 'm');
+					
+					assert.ok( app.actions.getPollFrequency(now, low) === app.config.pollFrequencyLow,
+						"When the bus is under 9 minutes away, poll at the lower frequency");
+					assert.ok( app.actions.getPollFrequency(now, medium) === app.config.pollFrequencyMedium,
+						"When the bus is under 19 minutes away, poll at the medium frequency");
+					assert.ok( app.actions.getPollFrequency(now, high) === app.config.pollFrequencyHigh,
+						"When the bus is over 30 minutes away, poll at the higher frequency");
+				});
+
+				QUnit.test( "Parse all buses after a specific bus time from the departures json", function( assert ) {
+					var departures = [
+						{date: "2018-11-13", aimed_departure_time: "10:00"},
+						{date: "2018-11-13", aimed_departure_time: "10:10"},
+						{date: "2018-11-13", aimed_departure_time: "10:20"}
+					]
+
+					assert.ok( app.actions.getAllBusesDepartingAfter("10:00", departures).length === 3,
+						"When the first bus is provided, all buses are returned");
+					assert.ok( app.actions.getAllBusesDepartingAfter("10:10", departures).length === 2,
+						"When the middle bus is provided, the last 2 buses are returned");
+					assert.ok( app.actions.getAllBusesDepartingAfter("10:20", departures).length === 1,
+						"When the last bus is provided, the last bus is returned");
+				});
+			});
+		</script>
+	</footer>
+<html>
