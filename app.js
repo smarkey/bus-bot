@@ -77,7 +77,7 @@ var app = {
 			var timeToLeave = expected.subtract(app.config.walkingTime, 'm').fromNow();
 
 			if(timeToLeave.indexOf("ago") !== -1) {
-				return `It's unlikely you'll catch this bus in ${moment.duration(expected.minutes(), 'm').humanize()}`;
+				return `It's unlikely you'll catch this bus in ${expected.fromNow()}`;
 			} else {
 				return `You should leave ${timeToLeave}.`;
 			}
