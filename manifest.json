@@ -2,12 +2,13 @@
   "short_name": "BusBot",
   "name": "Bus Bot",
   "description": "Tells you when to leave for the bus.",
-  "start_url": "/index.html",
-  "scope": ".",
+  "default_locale": "en",
+  "start_url": "index.html",
+  "scope": "./",
   "display": "standalone",
   "theme_color": "#3367D6",
   "background_color": "#3367D6",
-   "icons": [
+  "icons": [
     {
       "src": "bus.png",
       "type": "image/png",
