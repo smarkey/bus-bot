@@ -10,10 +10,18 @@ var app = {
 		services: [
 			"T1"
 		],
+		pollFrequency: {
+			low: 60000,
+			medium: 300000,
+			high: 600000,
+			extraHigh: 900000
+		},
+		timing: {
+			imminent: 5,
+			soon: 15,
+			distant: 30
+		},
 		walkingTime: 6,
-		pollFrequencyLow: 120000,
-		pollFrequencyMedium: 240000,
-		pollFrequencyHigh: 600000,
 		timeout: null
 	},
 	actions: {
@@ -66,20 +74,20 @@ var app = {
 			var message = `The ${scheduledTime} is`;
 
 			if(expected.isAfter(scheduled)) {
-				return `${message} late by ${moment.duration(expected.diff(scheduled, 'm')).humanize()}.`;
+				return `${message} late by ${expected.from(scheduled, 'm')}.`;
 			} else if(expected.isBefore(scheduled)) {
-				return `${message} early by ${moment.duration(scheduled.diff(expected, 'm')).humanize()}.`;
+				return `${message} early by ${scheduled.from(expected, 'm')}.`;
 			} else {
 				return `${message} on time.`;
 			}
 		},
 		getAdviceMessage: function(expected) {
-			var timeToLeave = expected.subtract(app.config.walkingTime, 'm').fromNow();
+			var timeToLeave = expected.clone().subtract(app.config.walkingTime, 'm');
 
-			if(timeToLeave.indexOf("ago") !== -1) {
-				return `It's unlikely you'll catch this bus in ${expected.fromNow()}`;
+			if(timeToLeave.isSameOrBefore(moment())) {
+				return `It's unlikely you'll catch this bus ${expected.clone().fromNow()}.`;
 			} else {
-				return `You should leave ${timeToLeave}.`;
+				return `You should leave ${timeToLeave.fromNow()}.`;
 			}
 		},
 		getAllBusesDepartingAfter: function(departureTime, buses) {
@@ -110,12 +118,14 @@ var app = {
 		getPollFrequency: function(now, expected) {
 			var minutesUntilDeparture = expected.diff(now, 'm');
 
-			if(minutesUntilDeparture < 10) {
-				return app.config.pollFrequencyLow;
-			} else if(minutesUntilDeparture < 20) {
-				return app.config.pollFrequencyMedium;
+			if(minutesUntilDeparture <= app.config.timing.imminent) {
+				return app.config.pollFrequency.low;
+			} else if(minutesUntilDeparture <= app.config.timing.soon) {
+				return app.config.pollFrequency.medium;
+			} else if(minutesUntilDeparture <= app.config.timing.distant) {
+				return app.config.pollFrequency.high;
 			} else {
-				return app.config.pollFrequencyHigh;
+				return app.config.pollFrequency.extraHigh;
 			}
 		},
 		log: function(message) {

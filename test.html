@@ -16,6 +16,22 @@
 	<footer>
 		<script>
 			$(function() {
+				QUnit.test( "Advice message should be in line with the bus departure time", function( assert ) {
+					var now = moment();
+
+					assert.equal( app.actions.getAdviceMessage(now.clone().add(1, 'm')), `It's unlikely you'll catch this bus in a minute.` );
+					assert.equal( app.actions.getAdviceMessage(now.clone().add(3, 'm')), `It's unlikely you'll catch this bus in 3 minutes.` );
+					assert.equal( app.actions.getAdviceMessage(now.clone().add(10, 'm')), `You should leave in 4 minutes.` );
+				});
+
+				QUnit.test( "Status message should be in line with the bus departure time", function( assert ) {
+					var now = moment("2018-01-01 09:00");
+
+					assert.equal( app.actions.getStatusMessage(now, now.clone().add(15, 'm')), `The 09:00 is late by 15 minutes.` );
+					assert.equal( app.actions.getStatusMessage(now, now.clone().subtract(15, 'm')), `The 09:00 is early by 15 minutes.` );
+					assert.equal( app.actions.getStatusMessage(now, now), `The 09:00 is on time.` );
+				});
+
 				QUnit.test( "Voice message should be in line with the bus departure time", function( assert ) {
 					var now = moment();
 					var scheduled = now.clone().add(30, 'm');
@@ -35,16 +51,19 @@
 
 				QUnit.test( "Frequency of polling should change dependent on how close the bus is", function( assert ) {
 					var now = moment();
-					var low = now.clone().add(9, 'm');
-					var medium = now.clone().add(19, 'm');
+					var low = now.clone().add(5, 'm');
+					var medium = now.clone().add(15, 'm');
 					var high = now.clone().add(30, 'm');
+					var extraHigh = now.clone().add(60, 'm');
 					
-					assert.ok( app.actions.getPollFrequency(now, low) === app.config.pollFrequencyLow,
-						"When the bus is under 9 minutes away, poll at the lower frequency");
-					assert.ok( app.actions.getPollFrequency(now, medium) === app.config.pollFrequencyMedium,
-						"When the bus is under 19 minutes away, poll at the medium frequency");
-					assert.ok( app.actions.getPollFrequency(now, high) === app.config.pollFrequencyHigh,
-						"When the bus is over 30 minutes away, poll at the higher frequency");
+					assert.equal( app.actions.getPollFrequency(now, low), app.config.pollFrequency.low,
+						"When the bus is under 6 minutes away, poll at the lower frequency");
+					assert.equal( app.actions.getPollFrequency(now, medium), app.config.pollFrequency.medium,
+						"When the bus is under 16 minutes away, poll at the medium frequency");
+					assert.equal( app.actions.getPollFrequency(now, high), app.config.pollFrequency.high,
+						"When the bus is over 31 minutes away, poll at the higher frequency");
+					assert.equal( app.actions.getPollFrequency(now, extraHigh), app.config.pollFrequency.extraHigh,
+						"When the bus is really high, poll at the highest frequency");
 				});
 
 				QUnit.test( "Parse all buses after a specific bus time from the departures json", function( assert ) {
@@ -54,11 +73,11 @@
 						{date: "2018-11-13", aimed_departure_time: "10:20"}
 					]
 
-					assert.ok( app.actions.getAllBusesDepartingAfter("10:00", departures).length === 3,
+					assert.equal( app.actions.getAllBusesDepartingAfter("10:00", departures).length, 3,
 						"When the first bus is provided, all buses are returned");
-					assert.ok( app.actions.getAllBusesDepartingAfter("10:10", departures).length === 2,
+					assert.equal( app.actions.getAllBusesDepartingAfter("10:10", departures).length, 2,
 						"When the middle bus is provided, the last 2 buses are returned");
-					assert.ok( app.actions.getAllBusesDepartingAfter("10:20", departures).length === 1,
+					assert.equal( app.actions.getAllBusesDepartingAfter("10:20", departures).length, 1,
 						"When the last bus is provided, the last bus is returned");
 				});
 			});
