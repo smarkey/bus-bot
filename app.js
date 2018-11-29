@@ -11,17 +11,17 @@ var app = {
 			"T1"
 		],
 		pollFrequency: {
-			low: 60000,
-			medium: 300000,
-			high: 600000,
-			extraHigh: 900000
+			low: 1,
+			medium: 5,
+			high: 10,
+			extraHigh: 15
 		},
 		timing: {
 			imminent: 5,
 			soon: 15,
 			distant: 30
 		},
-		walkingTime: 6,
+		walkingTime: 5,
 		timeout: null
 	},
 	actions: {
@@ -57,7 +57,7 @@ var app = {
 					"app_id=" + app.config.appId + 
 					"&app_key=" + app.config.appKey +
 					`&nextbus=${nextBus ? 'yes' : 'no'}` +
-					"&limit=20";
+					"&limit=10";
 		},
 		saySomething: function(text) {
 			var msg = new SpeechSynthesisUtterance(text);
@@ -73,22 +73,15 @@ var app = {
 			var scheduledTime = scheduled.format(moment.HTML5_FMT.TIME);
 			var message = `The ${scheduledTime} is`;
 
-			if(expected.isAfter(scheduled)) {
-				return `${message} late by ${expected.from(scheduled, 'm')}.`;
-			} else if(expected.isBefore(scheduled)) {
-				return `${message} early by ${scheduled.from(expected, 'm')}.`;
-			} else {
-				return `${message} on time.`;
-			}
+			if(expected.isAfter(scheduled)) 	return `${message} late by ${expected.from(scheduled, 'm')}.`;
+			if(expected.isBefore(scheduled)) 	return `${message} early by ${scheduled.from(expected, 'm')}.`;
+			return `${message} on time.`;
 		},
 		getAdviceMessage: function(expected) {
 			var timeToLeave = expected.clone().subtract(app.config.walkingTime, 'm');
 
-			if(timeToLeave.isSameOrBefore(moment())) {
-				return `It's unlikely you'll catch this bus ${expected.clone().fromNow()}.`;
-			} else {
-				return `You should leave ${timeToLeave.fromNow()}.`;
-			}
+			if(timeToLeave.isSameOrBefore(moment())) 	return `It's unlikely you'll catch this bus ${expected.clone().fromNow()}.`;
+			return `You should leave ${timeToLeave.fromNow()}.`;
 		},
 		getAllBusesDepartingAfter: function(departureTime, buses) {
 			return buses.filter(bus => 
@@ -100,44 +93,44 @@ var app = {
 			$.get(app.actions.getTimetablesUrl(true)).done( function(response) {
 				$('#stopName').html(response.stop_name);
 
+				var now = moment();
+				var time = now.format(moment.HTML5_FMT.TIME);
 				var buses = response.departures[$('#service').val()];
 
 				if(typeof buses !== "undefined" && typeof buses[0] !== "undefined") {
 					var bus = app.actions.getAllBusesDepartingAfter($('#time').val(), buses)[0];
 					var scheduled = moment(`${bus.date} ${bus.aimed_departure_time}`);
 					var expected = moment(`${bus.date} ${bus.best_departure_estimate}`);
+					
+					var message = app.actions.getMessage(scheduled, expected)
+					console.log(`[${time}] ${message}`);
 
-					app.actions.log(app.actions.getMessage(scheduled, expected));
-					app.config.timeout = setTimeout(app.actions.start, app.actions.getPollFrequency(moment(), expected));
+					if(expected.diff(now, 'm') < app.config.walkingTime || expected.diff(now, 'm') > 30) {
+						$('#status').append(`<img src="mute.svg" class="mute"><b>[${time}]</b> ${message}<br/>`);
+					} else {
+						$('#status').append(`<b>[${time}]</b> ${message}<br/>`);
+						app.actions.saySomething(message);
+					}
+
+					app.config.timeout = setTimeout(app.actions.start, app.actions.getPollFrequency(now, expected));
 				} else {
-					app.actions.log(`There are no buses for the ${$('#service').val()}`);
+					var message = `There are no buses for the ${$('#service').val()}`;
+					console.log(`[${time}] ${message}`);
+
 					$('#start, #stop').toggle();
 				}
 			});
 		},
 		getPollFrequency: function(now, expected) {
-			var minutesUntilDeparture = expected.diff(now, 'm');
+			var timings = app.config.timing;
+			var frequencies = app.config.pollFrequency;
+			var walkingTime = app.config.walkingTime;
+			var minutesToLeave = expected.diff(now, 'm') - walkingTime;
 
-			if(minutesUntilDeparture <= app.config.timing.imminent) {
-				return app.config.pollFrequency.low;
-			} else if(minutesUntilDeparture <= app.config.timing.soon) {
-				return app.config.pollFrequency.medium;
-			} else if(minutesUntilDeparture <= app.config.timing.distant) {
-				return app.config.pollFrequency.high;
-			} else {
-				return app.config.pollFrequency.extraHigh;
-			}
-		},
-		log: function(message) {
-			var time = moment().format(moment.HTML5_FMT.TIME);
-			console.log(`[${time}] ${message}`);
-
-			if(message.indexOf("It's unlikely you'll catch this bus in") !== -1 || message.indexOf("hour") !== -1) {
-				$('#status').append(`<img src="mute.svg" class="mute"><b>[${time}]</b> ${message}<br/>`);
-			} else {
-				$('#status').append(`<b>[${time}]</b> ${message}<br/>`);
-				app.actions.saySomething(message);
-			}
+			if(minutesToLeave > timings.distant) 	return frequencies.extraHigh * 60000;
+			if(minutesToLeave > timings.soon) 		return frequencies.high * 60000;
+			if(minutesToLeave > timings.imminent) 	return frequencies.medium * 60000;
+			return frequencies.low * 60000;
 		}
 	}
 }

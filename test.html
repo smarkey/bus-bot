@@ -21,7 +21,7 @@
 
 					assert.equal( app.actions.getAdviceMessage(now.clone().add(1, 'm')), `It's unlikely you'll catch this bus in a minute.` );
 					assert.equal( app.actions.getAdviceMessage(now.clone().add(3, 'm')), `It's unlikely you'll catch this bus in 3 minutes.` );
-					assert.equal( app.actions.getAdviceMessage(now.clone().add(10, 'm')), `You should leave in 4 minutes.` );
+					assert.equal( app.actions.getAdviceMessage(now.clone().add(10, 'm')), `You should leave in 5 minutes.` );
 				});
 
 				QUnit.test( "Status message should be in line with the bus departure time", function( assert ) {
@@ -49,21 +49,27 @@
 						"When the bus is due to depart before I can reach the bus stop" );
 				});
 
-				QUnit.test( "Frequency of polling should change dependent on how close the bus is", function( assert ) {
+				QUnit.test( "Frequency of polling should change dependent on when I need to leave for the bus", function( assert ) {
 					var now = moment();
+					var lowest = now.clone().add(5, 'm');
 					var low = now.clone().add(5, 'm');
 					var medium = now.clone().add(15, 'm');
 					var high = now.clone().add(30, 'm');
-					var extraHigh = now.clone().add(60, 'm');
+					var highest = now.clone().add(1, 'h');
+					var sillyhigh = now.clone().add(3, 'h');
 					
-					assert.equal( app.actions.getPollFrequency(now, low), app.config.pollFrequency.low,
-						"When the bus is under 6 minutes away, poll at the lower frequency");
-					assert.equal( app.actions.getPollFrequency(now, medium), app.config.pollFrequency.medium,
-						"When the bus is under 16 minutes away, poll at the medium frequency");
-					assert.equal( app.actions.getPollFrequency(now, high), app.config.pollFrequency.high,
-						"When the bus is over 31 minutes away, poll at the higher frequency");
-					assert.equal( app.actions.getPollFrequency(now, extraHigh), app.config.pollFrequency.extraHigh,
-						"When the bus is really high, poll at the highest frequency");
+					assert.equal( app.actions.getPollFrequency(now, lowest), 60000,
+						"When I need to leave in 1 minute, poll at the lower frequency");
+					assert.equal( app.actions.getPollFrequency(now, low), 60000,
+						"When I need to leave in 5 minutes, poll at the lower frequency");
+					assert.equal( app.actions.getPollFrequency(now, medium), 300000,
+						"When I need to leave in 15 minutes, poll at the medium frequency");
+					assert.equal( app.actions.getPollFrequency(now, high), 600000,
+						"When I need to leave in 30 minutes, poll at the higher frequency");
+					assert.equal( app.actions.getPollFrequency(now, highest), 900000,
+						"When I need to leave in an hour, poll at the highest frequency");
+					assert.equal( app.actions.getPollFrequency(now, sillyhigh), 900000,
+						"When I need to leave in 3 hours, poll at the highest frequency");
 				});
 
 				QUnit.test( "Parse all buses after a specific bus time from the departures json", function( assert ) {
