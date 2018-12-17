@@ -8,7 +8,8 @@ var app = {
 			work: '0100BRA16904'
 		},
 		services: [
-			"T1"
+			"T1",
+			"M1"
 		],
 		pollFrequency: {
 			low: 1,
