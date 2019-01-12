@@ -38,9 +38,9 @@ var app = {
 		},
 		populateTime: function() {
 			$.get(app.actions.getTimetablesUrl(false)).done( function(response) {
-				var buses = response.departures[$('#service').val()];
+				var buses = app.actions.getServicesFromResponse(response);
 
-				if(typeof buses !== "undefined" && typeof buses[0] !== "undefined") {
+				if(buses !== null && typeof buses[0] !== "undefined") {
 					$('#time').find('option').remove().end().prop('disabled', false);
 
 					$.each(buses, function( index, bus ) {
@@ -52,6 +52,22 @@ var app = {
 					$('#start').prop('disabled', true);
 				}
 			});
+		},
+		getServicesFromResponse: function(response) {
+			var key = $('#service').val();
+			var map = response.departures;
+			var result = null;
+
+			// Hack required because using nextbus flag on request means m1 changes to M1
+			if(typeof map[key.toLowerCase()] !== "undefined") {
+				result = map[key.toLowerCase()];
+			}
+
+			if(typeof map[key.toUpperCase()] !== "undefined") {
+				result = map[key.toUpperCase()];
+			}
+
+			return result;
 		},
 		getTimetablesUrl: function(nextBus) {
 			return app.config.baseUrl + "/uk/bus/stop/" + $('#location').val() + "/live.json?" + 
@@ -96,9 +112,9 @@ var app = {
 
 				var now = moment();
 				var time = now.format(moment.HTML5_FMT.TIME);
-				var buses = response.departures[$('#service').val()];
+				var buses = app.actions.getServicesFromResponse(response);
 
-				if(typeof buses !== "undefined" && typeof buses[0] !== "undefined") {
+				if(buses !== null && typeof buses[0] !== "undefined") {
 					var bus = app.actions.getAllBusesDepartingAfter($('#time').val(), buses)[0];
 					var scheduled = moment(`${bus.date} ${bus.aimed_departure_time}`);
 					var expected = moment(`${bus.date} ${bus.best_departure_estimate}`);
